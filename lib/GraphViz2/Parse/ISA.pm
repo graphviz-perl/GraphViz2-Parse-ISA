@@ -14,8 +14,7 @@ use GraphViz2;
 use Moo;
 use Tree::DAG_Node;
 
-has graph =>
-(
+has graph => (
 	default  => sub {
 		GraphViz2->new(
 			edge   => {color => 'grey'},
@@ -29,114 +28,64 @@ has graph =>
 	required => 0,
 );
 
-has is_a =>
-(
+has is_a => (
 	default  => sub{return {} },
-	is       => 'rw',
+	is       => 'ro',
 	#isa     => 'HashRef',
 	required => 0,
 );
 
-# -----------------------------------------------
-
-sub add
-{
-	my($self, %arg) = @_;
-	my($class)  = delete $arg{class}  || die 'Error. No class name specified';
-	my($ignore) = delete $arg{ignore} || [];
-
-	die "Error. The class parameter must not be a ref\n"            if (ref $class);
-	die "Error. The ignore parameter's value must be an arrayref\n" if ($ignore && (ref $ignore ne 'ARRAY') );
-	die "Error: Unable to load class '$class'\n"                    if (try_load_class($class) == 0);
-
-	my(%ignore);
-
-	@ignore{@$ignore} = (1) x @$ignore;
-	my($tree)         = Tree::DAG_Node -> new;
-
-	$self -> _process_is_a($tree, $class, \%ignore);
-	$self -> _simplify($tree);
-
-	my($is_a) = $self -> is_a;
-
-	$self -> _build_dependency($tree, $is_a);
-	$self -> is_a($is_a);
-
+sub add {
+	my ($self, %arg) = @_;
+	my $class = delete $arg{class}  || die 'Error. No class name specified';
+	my $ignore = delete $arg{ignore} || [];
+	die "Error. The class parameter must not be a ref\n" if ref $class;
+	die "Error. The ignore parameter's value must be an arrayref\n" if ref $ignore ne 'ARRAY';
+	die "Error: Unable to load class '$class'\n" if !try_load_class $class;
+	my $tree = Tree::DAG_Node->new;
+	_process_is_a($tree, $class, +{ map +($_=>1), @$ignore });
+	_simplify($tree);
+	_build_dependency($tree, $self->is_a);
 	return $self;
+}
 
-} # End of add.
+sub _build_dependency {
+	my ($tree, $is_a) = @_;
+	$$is_a{$tree->name} = [map $_->name, my @daughters = $tree->daughters];
+	_build_dependency($_, $is_a) for @daughters;
+}
 
-sub _build_dependency
-{
-	my($self, $tree, $is_a) = @_;
-	my($name)     = $tree -> name;
-	$$is_a{$name} = [];
+sub _process_is_a {
+	my($tree, $class, $ignore) = @_;
+	$tree->name($class);
+	_process_is_a($tree->new_daughter, $_, $ignore)
+		for grep !$$ignore{$_}, Class::ISA::super_path($class);
+}
 
-	for my $node ($tree -> daughters)
-	{
-		push @{$$is_a{$name} }, $node -> name;
-
-		$self -> _build_dependency($node, $is_a);
+sub _simplify {
+	my ($tree) = @_;
+	my @delenda;
+	for my $node ($tree->daughters) {
+		my $node_name = $node->name;
+		push @delenda, $node if grep $node_name eq $_->name,
+			map $_->daughters, $node->sisters;
 	}
+	$tree->remove_daughters(@delenda);
+	_simplify($_) for $tree->daughters;
+}
 
-} # End of _build_dependency.
-
-# -----------------------------------------------
-
-sub generate_graph
-{
+sub generate_graph {
 	my($self) = @_;
 	my $data = Algorithm::Dependency->new(source => Algorithm::Dependency::Source::HoA->new($self->is_a));
 	die 'Error: No dependency data provided' if !$data;
 	my $g = $self->graph;
-	for my $item (sort {$a->id cmp $b->id} $data->source->items) {
-		$g->add_node(name => $item->id);
-		$g->add_edge(from => $item->id, to => $_) for $item->depends;
+	my @items = sort {$a->[0] cmp $b->[0]} map [$_->id, $_->depends], $data->source->items;
+	for my $item (@items) {
+		my ($id, @depends) = @$item;
+		$g->add_node(name => $id);
+		$g->add_edge(from => $id, to => $_) for @depends;
 	}
-} # End of generate_graph.
-
-sub _process_is_a
-{
-	my($self, $tree, $class, $ignore) = @_;
-
-	$tree -> name($class);
-
-	for my $klass (Class::ISA::super_path($class) )
-	{
-		$self -> _process_is_a($tree -> new_daughter, $klass, $ignore) if (! $$ignore{$klass});
-	}
-
-} # End of _process_is_a.
-
-# -----------------------------------------------
-
-sub _simplify
-{
-	my($self, $tree) = @_;
-
-	my(@node);
-
-	for my $node ($tree -> daughters)
-	{
-		for my $sister ($node -> sisters)
-		{
-			for my $daughter ($sister -> daughters)
-			{
-				push @node, $node if ($node -> name eq $daughter -> name);
-			}
-		}
-	}
-
-	$tree -> remove_daughters(@node);
-
-	for my $node ($tree -> daughters)
-	{
-		$self -> _simplify($node);
-	}
-
-} # End of _simplify.
-
-# ------------------------------------------------
+}
 
 1;
 
@@ -146,7 +95,7 @@ sub _simplify
 
 L<GraphViz2::Parse::ISA> - Visualize N Perl class hierarchies as a graph
 
-=head1 Synopsis
+=head1 SYNOPSIS
 
 	use strict;
 	use warnings;
@@ -166,7 +115,7 @@ L<GraphViz2::Parse::ISA> - Visualize N Perl class hierarchies as a graph
 
 See scripts/parse.isa.pl.
 
-=head1 Description
+=head1 DESCRIPTION
 
 Takes a class name and converts its class hierarchy into a graph. This can be done for N different classes before the graph is generated.
 
@@ -176,7 +125,7 @@ You can write the result in any format supported by L<Graphviz|http://www.graphv
 
 =head2 Calling new()
 
-C<new()> is called as C<< my($obj) = GraphViz2::Parse::ISA -> new(k1 => v1, k2 => v2, ...) >>.
+C<new()> is called as C<< my($obj) = GraphViz2::Parse::ISA->new(k1 => v1, k2 => v2, ...) >>.
 
 It returns a new object of type C<GraphViz2::Parse::ISA>.
 
@@ -197,7 +146,7 @@ This key is optional.
 
 =back
 
-=head1 Methods
+=head1 METHODS
 
 =head2 add(class => $class[, ignore => $ignore])
 
@@ -236,7 +185,7 @@ Demonstrates combining 2 Perl class hierarchies on the same graph.
 Outputs to ./html/parse.isa.svg by default. Change this by providing a
 format argument (e.g. C<svg>) and a filename argument.
 
-=head1 Thanks
+=head1 THANKS
 
 Many thanks are due to the people who chose to make L<Graphviz|http://www.graphviz.org/> Open Source.
 
@@ -245,13 +194,13 @@ And thanks to L<Leon Brocard|http://search.cpan.org/~lbrocard/>, who wrote L<Gra
 The code in add() was adapted from L<GraphViz::ISA::Multi> by Marcus Thiesen, but that code gobbled up package declarations
 in comments and POD, so I used L<Pod::Simple> to give me just the source code.
 
-=head1 Author
+=head1 AUTHOR
 
 L<GraphViz2> was written by Ron Savage I<E<lt>ron@savage.net.auE<gt>> in 2011.
 
 Home page: L<http://savage.net.au/index.html>.
 
-=head1 Copyright
+=head1 COPYRIGHT
 
 Australian copyright (c) 2011, Ron Savage.
 
