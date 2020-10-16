@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use warnings  qw(FATAL utf8); # Fatalize encoding glitches.
 
-our $VERSION = '2.52';
+our $VERSION = '2.53';
 
 use Class::Load 'try_load_class';
 use GraphViz2;
