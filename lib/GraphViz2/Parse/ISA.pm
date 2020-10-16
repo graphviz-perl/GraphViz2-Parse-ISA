@@ -148,37 +148,23 @@ L<GraphViz2::Parse::ISA> - Visualize N Perl class hierarchies as a graph
 
 =head1 Synopsis
 
-	#!/usr/bin/env perl
-
 	use strict;
 	use warnings;
-
 	use File::Spec;
-
-	use GraphViz2;
 	use GraphViz2::Parse::ISA;
 
-	my($graph) = GraphViz2 -> new
-		(
-		 edge   => {color => 'grey'},
-		 global => {directed => 1},
-		 graph  => {rankdir => 'BT'},
-		 node   => {color => 'blue', shape => 'Mrecord'},
-		);
-	my($parser) = GraphViz2::Parse::ISA -> new(graph => $graph);
-
+	my $parser = GraphViz2::Parse::ISA->new;
 	unshift @INC, 't/lib';
+	$parser->add(class => 'Adult::Child::Grandchild', ignore => []);
+	$parser->add(class => 'HybridVariety', ignore => []);
+	$parser->generate_graph;
 
-	$parser -> add(class => 'Adult::Child::Grandchild', ignore => []);
-	$parser -> add(class => 'Hybrid', ignore => []);
-	$parser -> generate_graph;
+	my $format      = shift || 'svg';
+	my $output_file = shift || "parse.code.$format";
 
-	my($format)      = shift || 'svg';
-	my($output_file) = shift || File::Spec -> catfile('html', "parse.code.$format");
+	$parser->graph->run(format => $format, output_file => $output_file);
 
-	$graph -> run(format => $format, output_file => $output_file);
-
-See scripts/parse.isa.pl (L<GraphViz2/Scripts Shipped with this Module>).
+See scripts/parse.isa.pl.
 
 =head1 Description
 
@@ -243,17 +229,12 @@ Returns the graph object, either the one supplied to new() or the one created du
 
 =head1 Scripts Shipped with this Module
 
-=head2 scripts/dependency.pl
-
-Demonstrates graphing an L<Algorithm::Dependency> source.
-
-Outputs to ./html/dependency.svg by default.
-
 =head2 scripts/parse.isa.pl
 
 Demonstrates combining 2 Perl class hierarchies on the same graph.
 
-Outputs to ./html/parse.isa.svg by default.
+Outputs to ./html/parse.isa.svg by default. Change this by providing a
+format argument (e.g. C<svg>) and a filename argument.
 
 =head1 Thanks
 
