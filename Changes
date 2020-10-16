@@ -1,3 +1,5 @@
+- zap now-irrelevant scripts/dependency.pl
+
 2.52 2020-10-14
 - drop test for GraphViz2->dependency method - thanks @neo1ite for report
 
