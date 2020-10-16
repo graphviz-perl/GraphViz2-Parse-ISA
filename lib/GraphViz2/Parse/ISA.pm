@@ -6,13 +6,9 @@ use warnings  qw(FATAL utf8); # Fatalize encoding glitches.
 
 our $VERSION = '2.52';
 
-use Algorithm::Dependency;
-use Algorithm::Dependency::Source::HoA;
-use Class::ISA;
 use Class::Load 'try_load_class';
 use GraphViz2;
 use Moo;
-use Tree::DAG_Node;
 
 has graph => (
 	default  => sub {
@@ -42,48 +38,25 @@ sub add {
 	die "Error. The class parameter must not be a ref\n" if ref $class;
 	die "Error. The ignore parameter's value must be an arrayref\n" if ref $ignore ne 'ARRAY';
 	die "Error: Unable to load class '$class'\n" if !try_load_class $class;
-	my $tree = Tree::DAG_Node->new;
-	_process_is_a($tree, $class, +{ map +($_=>1), @$ignore });
-	_simplify($tree);
-	_build_dependency($tree, $self->is_a);
+	_process_is_a($class, +{ map +($_=>1), @$ignore }, $self->is_a);
 	return $self;
 }
 
-sub _build_dependency {
-	my ($tree, $is_a) = @_;
-	$$is_a{$tree->name} = [map $_->name, my @daughters = $tree->daughters];
-	_build_dependency($_, $is_a) for @daughters;
-}
-
 sub _process_is_a {
-	my($tree, $class, $ignore) = @_;
-	$tree->name($class);
-	_process_is_a($tree->new_daughter, $_, $ignore)
-		for grep !$$ignore{$_}, Class::ISA::super_path($class);
-}
-
-sub _simplify {
-	my ($tree) = @_;
-	my @delenda;
-	for my $node ($tree->daughters) {
-		my $node_name = $node->name;
-		push @delenda, $node if grep $node_name eq $_->name,
-			map $_->daughters, $node->sisters;
-	}
-	$tree->remove_daughters(@delenda);
-	_simplify($_) for $tree->daughters;
+	my ($class, $ignore, $is_a) = @_;
+	no strict 'refs';
+	$$is_a{$class} = [ my @isa = grep !$$ignore{$_}, @{$class . '::ISA'} ];
+	_process_is_a($_, $ignore, $is_a) for @isa;
 }
 
 sub generate_graph {
 	my($self) = @_;
-	my $data = Algorithm::Dependency->new(source => Algorithm::Dependency::Source::HoA->new($self->is_a));
-	die 'Error: No dependency data provided' if !$data;
+	my $is_a = $self->is_a;
+	die 'Error: No dependency data provided' if !%$is_a;
 	my $g = $self->graph;
-	my @items = sort {$a->[0] cmp $b->[0]} map [$_->id, $_->depends], $data->source->items;
-	for my $item (@items) {
-		my ($id, @depends) = @$item;
-		$g->add_node(name => $id);
-		$g->add_edge(from => $id, to => $_) for @depends;
+	$g->add_node(name => $_) for my @n = sort keys %$is_a;
+	for my $id (@n) {
+		$g->add_edge(from => $id, to => $_) for @{ $$is_a{$id} };
 	}
 }
 
