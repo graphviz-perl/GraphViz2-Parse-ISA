@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use warnings  qw(FATAL utf8); # Fatalize encoding glitches.
 
-our $VERSION = '2.53';
+our $VERSION = '2.54';
 
 use Module::Runtime 'require_module';
 use GraphViz2;
