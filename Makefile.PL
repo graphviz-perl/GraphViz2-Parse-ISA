@@ -6,7 +6,7 @@ my $repo = 'graphviz-perl/GraphViz2-Parse-ISA';
 WriteMakefile(
   AUTHOR => 'Ron Savage (ron@savage.net.au)',
   ABSTRACT => "Use GraphViz2 to visualize Perl class hierarchies",
-  MIN_PERL_VERSION => 5.010001,
+  MIN_PERL_VERSION => 5.008008,
   NAME => 'GraphViz2::Parse::ISA',
   PREREQ_PM => {
     'GraphViz2' => '2.48',
