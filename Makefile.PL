@@ -11,7 +11,8 @@ WriteMakefile(
   PREREQ_PM => {
     'GraphViz2' => '2.48',
     'Moo' => '2.001001',
-    'Class::Load' => 0.23,
+    'Module::Runtime' => '0.016',
+    'parent' => 0, # not in 5.8
   },
   TEST_REQUIRES => {
     'Test::More' => 1.001002,
